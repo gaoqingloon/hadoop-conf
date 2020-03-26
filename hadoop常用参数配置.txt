@@ -1,0 +1,419 @@
+
+core-site.xml
+===================================================
+<!-- 指定HDFS中NameNode的地址 -->
+<property>
+    <name>fs.defaultFS</name>
+    <value>hdfs://hadoop101:9000</value>
+</property>
+
+<!-- 指定hadoop运行时产生文件的存储目录 -->
+<property>
+    <name>hadoop.tmp.dir</name>
+    <value>/opt/module/hadoop-2.7.2/data/tmp</value>
+</property>
+
+<!-- 增加配置支持LZO压缩 -->
+<!-- 将编译好的hadoop-lzo-xxx.jar放入hadoop-xxx/share/hadoop/common/ -->
+<property>
+    <name>io.compression.codecs</name>  
+    <value>org.apache.hadoop.io.compress.GzipCodec, org.apache.hadoop.io.compress.DefaultCodec, org.apache.hadoop.io.compress.BZip2Codec, org.apache.hadoop.io.compress.SnappyCodec, com.hadoop.compression.lzo.LzoCodec, com.hadoop.compression.lzo.LzopCodec</value>
+</property>
+<property>
+    <name>io.compression.codec.lzo.class</name>  
+    <value>com.hadoop.compression.lzo.LzoCodec</value>
+</property>
+
+<!-- 启用回收站，配置垃圾回收时间为1分钟 -->
+<property>
+    <name>fs.trash.interval</name>
+    <value>1</value>
+</property>
+
+<!-- 修改访问垃圾回收站用户名称，默认是dr.who，修改为gql用户-->
+vim core-site.xml
+<property>
+    <name>hadoop.http.staticuser.user</name>
+    <value>gql</value>
+</property>
+
+
+<!-- 声明journalnode服务本地文件系统存储目录-->
+<property>
+    <name>dfs.journalnode.edits.dir</name>
+    <value>/xxx</value>
+</property>
+<!-- 指定hadoop运行时产生文件的存储目录 -->
+<property>
+    <name>hadoop.tmp.dir</name>
+    <value>/xxx</value>
+</property>
+
+<!-- 配置HDFS-HA自动故障转移,需要zookeeper协调 -->
+<property>
+   <name>ha.zookeeper.quorum</name>
+   <value>hadoop102:2181,hadoop103:2181,hadoop104:2181</value>
+</property>
+
+
+
+hdfs-site.xml
+===================================================
+<!-- 指定HDFS副本的数量 -->
+<property>
+  <name>dfs.replication</name>
+  <value>3</value>
+</property>
+<!-- 指定SecondaryNameNode地址 -->
+<property>
+  <name>dfs.namenode.secondary.http-address</name>
+  <value>hadoop104:50090</value>
+</property>
+
+<!-- 配置datanode多目录，最好提前配置好，否则更改目录需要重新启动集群
+确认HDFS的存储目录，保证存储在空间最大硬盘上，每个目录存储的数据不一样 -->
+<property>
+  <name>dfs.datanode.data.dir</name>
+  <value>file:///${hadoop.tmp.dir}/dfs/data1,file:///hd2/dfs/data2,file:///hd3/dfs/data3,file:///hd4/dfs/data4</value>
+</property>
+
+<!-- 通常情况下，SecondaryNameNode每隔一小时执行一次 -->
+<property>
+    <name>dfs.namenode.checkpoint.period</name>
+    <value>3600</value>
+</property>
+
+<!-- 一分钟检查一次操作次数，当操作次数达到1百万时，SecondaryNameNode执行一次 -->
+<property>
+    <name>dfs.namenode.checkpoint.txns</name>
+    <value>1000000</value>
+    <description>操作动作次数</description>
+</property>
+<property>
+    <name>dfs.namenode.checkpoint.check.period</name>
+    <value>60</value>
+    <description>1分钟检查一次操作次数</description>
+</property>
+
+
+<property>
+    <name>dfs.namenode.checkpoint.period</name>
+    <value>120</value>
+</property>
+<property>
+    <name>dfs.namenode.name.dir</name>
+    <value>/opt/module/hadoop-2.7.2/data/tmp/dfs/name</value>
+</property>
+
+<!-- NameNode的本地目录可以配置成多个，且每个目录存放内容相同 -->
+<property>
+    <name>dfs.namenode.name.dir</name>
+    <value>file:///${hadoop.tmp.dir}/dfs/name1,file:///${hadoop.tmp.dir}/dfs/name2</value>
+</property>
+
+<!-- 掉线时限参数设置，HDFS默认的超时时长为10分钟+30秒
+timeout  = 2 * dfs.namenode.heartbeat.recheck-interval + 10 * dfs.heartbeat.interval -->
+<property>
+    <name>dfs.namenode.heartbeat.recheck-interval</name>
+    <value>300000</value>
+</property>
+<property>
+    <name>dfs.heartbeat.interval</name>
+    <value>3</value>
+</property>
+
+<!-- 服役新节点(datanode) -->
+<property>
+    <name>dfs.hosts</name>
+    <value>/opt/module/hadoop-xxx/etc/hadoop/dfs.hosts</value>
+</property>
+
+<!-- 退役旧数据节点(datanode) -->
+<property>     
+    <name>dfs.hosts.exclude</name>
+    <value>/opt/module/hadoop-2.7.2/etc/hadoop/dfs.hosts.exclude</value>
+</property>
+
+
+<!-- NameNode有一个工作线程池，用来处理不同DataNode的并发心跳以及客户端并发的元数据操作。对于大集群或者有大量客户端的集群来说，通常需要增大参数dfs.namenode.handler.count的默认值10，比如集群规模为8台时，此参数设置为60 -->
+dfs.namenode.handler.count=20 * log2(Cluster Size)
+
+
+<!-- 编辑日志存储路径 -->
+dfs.namenode.edits.dir
+<!-- 镜像文件存储路径 -->
+dfs.namenode.name.dir
+<!-- 两路径尽量分开，达到最低写入延迟 -->
+
+<!-- 完全分布式集群名称 -->
+<property>
+    <name>dfs.nameservices</name>
+    <value>mycluster</value>
+</property>
+<!-- 集群中NameNode节点都有哪些 -->
+<property>
+    <name>dfs.ha.namenodes.mycluster</name>
+    <value>nn1,nn2</value>
+</property>
+<!-- nn1的RPC通信地址 -->
+<property>
+    <name>dfs.namenode.rpc-address.mycluster.nn1</name>
+    <value>hadoop102:9000</value>
+</property>
+<!-- nn2的RPC通信地址 -->
+<property>
+    <name>dfs.namenode.rpc-address.mycluster.nn2</name>
+    <value>hadoop103:9000</value>
+</property>
+<!-- nn1的http通信地址 -->
+<property>
+    <name>dfs.namenode.http-address.mycluster.nn1</name>
+    <value>hadoop102:50070</value>
+</property>
+<!-- nn2的http通信地址 -->
+<property>
+    <name>dfs.namenode.http-address.mycluster.nn2</name>
+    <value>hadoop103:50070</value>
+</property>
+<!-- 指定NameNode元数据在JournalNode上的存放位置 -->
+<property>
+    <name>dfs.namenode.shared.edits.dir</name>
+    <value>qjournal://hadoop102:8485;hadoop103:8485;hadoop104:8485/mycluster</value>
+</property>
+<!-- 配置隔离机制，即同一时刻只能有一台服务器对外响应 -->
+<property>
+    <name>dfs.ha.fencing.methods</name>
+    <value>sshfence</value>
+</property>
+<!-- 使用隔离机制时需要ssh无秘钥登录-->
+<property>
+    <name>dfs.ha.fencing.ssh.private-key-files</name>
+    <value>/home/gql/.ssh/id_rsa</value>
+</property>
+<!-- 关闭权限检查-->
+<property>
+    <name>dfs.permissions.enable</name>
+    <value>false</value>
+</property>
+<!-- 访问代理类：client，mycluster，active配置失败自动切换实现方式-->
+<property>
+    <name>dfs.client.failover.proxy.provider.mycluster</name>
+    <value>org.apache.hadoop.hdfs.server.namenode.ha.ConfiguredFailoverProxyProvider</value>
+</property>
+
+
+<!-- 配置HDFS-HA自动故障转移 -->
+<property>
+   <name>dfs.ha.automatic-failover.enabled</name>
+   <value>true</value>
+</property>
+
+
+
+yarn-site.xml
+===================================================
+<!-- reducer获取数据的方式 -->
+<property>
+    <name>yarn.nodemanager.aux-services</name>
+    <value>mapreduce_shuffle</value>
+</property>
+<!-- 指定YARN的ResourceManager的地址 -->
+<property>
+    <name>yarn.resourcemanager.hostname</name>
+    <value>hadoop103</value>
+</property>
+
+<!-- 日志聚集功能使能 -->
+<property>
+    <name>yarn.log-aggregation-enable</name>
+    <value>true</value>
+</property>
+<!-- 日志保留时间设置7天 -->
+<property>
+    <name>yarn.log-aggregation.retain-seconds</name>
+    <value>604800</value>
+</property>
+
+
+（1）内存使用率低，任务跑的慢，需要调节下面两个值；
+（2）MR造成系统宕机，要控制Yarn同时运行的任务数和每个任务申请的最大内存；
+
+<!-- Hadoop单个节点YARN可使用的内存大小，默认是8192（MB）-->
+yarn.nodemanager.resource.memory-mb
+若节点内存资源不够8GB，需要调减小这个值，YARN不会智能探测节点物理内存总量；
+
+<!-- 单个任务可申请的最多物理内存量，默认是8192（MB） -->
+yarn.scheduler.maximum-allocation-mb
+
+
+<!-- yarn ha -->
+<property>
+    <name>yarn.nodemanager.aux-services</name>
+    <value>mapreduce_shuffle</value>
+</property>
+<!--启用resourcemanager ha-->
+<property>
+    <name>yarn.resourcemanager.ha.enabled</name>
+    <value>true</value>
+</property>
+<!--声明两台resourcemanager的地址-->
+<property>
+    <name>yarn.resourcemanager.cluster-id</name>
+    <value>cluster-yarn1</value>
+</property>
+<property>
+    <name>yarn.resourcemanager.ha.rm-ids</name>
+    <value>rm1,rm2</value>
+</property>
+<property>
+    <name>yarn.resourcemanager.hostname.rm1</name>
+    <value>hadoop102</value>
+</property>
+<property>
+    <name>yarn.resourcemanager.hostname.rm2</name>
+    <value>hadoop103</value>
+</property>
+<!--指定zookeeper集群的地址-->
+<property>
+    <name>yarn.resourcemanager.zk-address</name>
+    <value>hadoop102:2181,hadoop103:2181,hadoop104:2181</value>
+</property>
+<!--启用自动恢复-->
+<property>
+    <name>yarn.resourcemanager.recovery.enabled</name>
+    <value>true</value>
+</property>
+<!--指定resourcemanager的状态信息存储在zookeeper集群-->
+<property>
+    <name>yarn.resourcemanager.store.class</name>
+    <value>org.apache.hadoop.yarn.server.resourcemanager.recovery.ZKRMStateStore</value>
+</property>
+
+<!-- yarn的资源调度器，默认是公平调度器，可根据集群情况修改 -->
+<property>
+    <description>The class to use as the resource scheduler.</description>
+    <name>yarn.resourcemanager.scheduler.class</name>
+<value>org.apache.hadoop.yarn.server.resourcemanager.scheduler.capacity.CapacityScheduler</value>
+</property>
+
+<!-- 任务的推测执行，默认是打开 -->
+<property>
+  <name>mapreduce.map.speculative</name>
+  <value>true</value>
+  <description>If true, then multiple instances of some map tasks may be executed in parallel.</description>
+</property>
+<property>
+  <name>mapreduce.reduce.speculative</name>
+  <value>true</value>
+  <description>If true, then multiple instances of some reduce tasks may be executed in parallel.</description>
+</property>
+
+
+
+mapred-site.xml
+===================================================
+<!-- 指定mr运行在yarn上 -->
+<property>
+  <name>mapreduce.framework.name</name>
+  <value>yarn</value>
+</property>
+
+<!-- 配置历史服务器 -->
+<property>
+    <name>mapreduce.jobhistory.address</name>
+    <value>hadoop101:10020</value>
+</property>
+<property>
+    <name>mapreduce.jobhistory.webapp.address</name>
+    <value>hadoop101:19888</value>
+</property>
+
+<!-- 开启JVM重用，设置值在10-20之间即可
+对于大量小文件Job，可以开启JVM重用会减少45%运行时间
+ -->
+mapreduce.job.jvm.numtasks
+
+
+
+HDFS性能测试
+===================================================
+1. 测试HDFS写性能
+（1）向HDFS集群写10个128M的文件:
+hadoop jar hadoop-xxx/share/hadoop/mapreduce/hadoop-mapreduce-client-jobclient-xxx-tests.jar TestDFSIO -write -nrFiles 10 -fileSize 128MB
+（2）执行之后会出现性能测试结果，可以查看写性能。
+
+2. 测试HDFS读性能
+（1）读取HDFS集群10个128M的文件
+hadoop jar hadoop-xxx/share/hadoop/mapreduce/hadoop-mapreduce-client-jobclient-xxx-tests.jar TestDFSIO -read -nrFiles 10 -fileSize 128MB
+（2）执行之后会出现性能测试结果，可以查看读性能。
+
+3. 删除测试生成数据
+hadoop jar hadoop-xxx/share/hadoop/mapreduce/hadoop-mapreduce-client-jobclient-xxx-tests.jar TestDFSIO -clean
+
+4. 测试MapReduce性能
+（1）使用RandomWriter来产生随机数，每个节点运行10个Map任务，每个Map产生大约1G大小的二进制随机数
+hadoop jar  hadoop-xxx/share/hadoop/mapreduce/hadoop-mapreduce-examples-xxx.jar randomwriter random-data
+（2）执行Sort程序
+hadoop jar  hadoop-xxx/share/hadoop/mapreduce/hadoop-mapreduce-examples-xxx.jar sort random-data sorted-data
+（3）验证数据是否真正排好序了
+hadoop jar  /opt/module/hadoop-xxx/share/hadoop/mapreduce/hadoop-mapreduce-examples-xxx.jar testmapredsort -sortInput random-data -sortOutput  sorted-data
+
+
+
+
+
+
+6 . 常用的调优参数
+
+1．资源相关参数
+
+（1）以下参数是在用户自己的mr应用程序中配置就可以生效（mapred-default.xml）
+mapreduce.map.memory.mb
+一个Map Task可使用的资源上限（单位:MB），默认为1024。
+如果Map Task实际使用的资源量超过该值，则会被强制杀死。
+mapreduce.reduce.memory.mb
+一个Reduce Task可使用的资源上限（单位:MB），默认为1024。
+如果Reduce Task实际使用的资源量超过该值，则会被强制杀死。
+mapreduce.map.cpu.vcores
+每个Map task可使用的最多cpu core数目，默认值: 1
+mapreduce.reduce.cpu.vcores
+每个Reduce task可使用的最多cpu core数目，默认值: 1
+mapreduce.reduce.shuffle.parallelcopies
+每个reduce去map中拿数据的并行数。默认值是5
+mapreduce.reduce.shuffle.merge.percent
+buffer中的数据达到多少比例开始写入磁盘。默认值0.66
+mapreduce.reduce.shuffle.input.buffer.percent
+buffer大小占reduce可用内存的比例。默认值0.7
+mapreduce.reduce.input.buffer.percent
+指定多少比例的内存用来存放buffer中的数据，默认值是0.0
+
+
+（2）应该在yarn启动之前就配置在服务器的配置文件中才能生效（yarn-default.xml）
+yarn.scheduler.minimum-allocation-mb    
+给应用程序container分配的最小内存，默认值：1024
+yarn.scheduler.maximum-allocation-mb    
+给应用程序container分配的最大内存，默认值：8192
+yarn.scheduler.minimum-allocation-vcores  
+每个container申请的最小CPU核数，默认值：1
+yarn.scheduler.maximum-allocation-vcores  
+每个container申请的最大CPU核数，默认值：32
+yarn.nodemanager.resource.memory-mb
+给containers分配的最大物理内存，默认值：8192
+
+
+（3）shuffle性能优化的关键参数，应在yarn启动之前就配置好（mapred-default.xml）
+mapreduce.task.io.sort.mb
+shuffle的环形缓冲区大小，默认100m
+mapreduce.map.sort.spill.percent 
+环形缓冲区溢出的阈值，默认80%
+
+
+2．容错相关参数(mapreduce性能优化)
+mapreduce.map.maxattempts
+每个Map Task最大重试次数，一旦重试参数超过该值，则认为Map Task运行失败，默认值4
+mapreduce.reduce.maxattempts
+每个Reduce Task最大重试次数，一旦重试参数超过该值，则认为Map Task运行失败，默认值4
+mapreduce.task.timeout
+Task超时时间，经常需要设置的一个参数，该参数表达的意思为：如果一个task在一定时间内没有任何进入，即不会读取新的数据，也没有输出数据，则认为该task处于block状态，可能是卡住了，也许永远会卡住，为了防止因为用户程序永远block住不退出，则强制设置了一个该超时时间（单位毫秒），默认是600000。如果你的程序对每条输入数据的处理时间过长（比如会访问数据库，通过网络拉取数据等），建议将该参数调大，该参数过小常出现的错误提示是“AttemptID:attempt_14267829456721_123456_m_000224_0 Timed out after 300 secsContainer killed by the ApplicationMaster.”。
+
+
