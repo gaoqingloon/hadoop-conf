@@ -417,3 +417,379 @@ mapreduce.task.timeout
 Task超时时间，经常需要设置的一个参数，该参数表达的意思为：如果一个task在一定时间内没有任何进入，即不会读取新的数据，也没有输出数据，则认为该task处于block状态，可能是卡住了，也许永远会卡住，为了防止因为用户程序永远block住不退出，则强制设置了一个该超时时间（单位毫秒），默认是600000。如果你的程序对每条输入数据的处理时间过长（比如会访问数据库，通过网络拉取数据等），建议将该参数调大，该参数过小常出现的错误提示是“AttemptID:attempt_14267829456721_123456_m_000224_0 Timed out after 300 secsContainer killed by the ApplicationMaster.”。
 
 
+
+hive-site.xml
+==========================================
+<!-- mysql 的配置 -->
+<property>
+  <name>javax.jdo.option.ConnectionURL</name>
+   <value>jdbc:mysql://hadoop102:3306/metastore?createDatabaseIfNotExist=true</value>
+  <description>JDBC connect string for a JDBC  metastore</description>
+</property>
+<property>
+  <name>javax.jdo.option.ConnectionDriverName</name>
+  <value>com.mysql.jdbc.Driver</value>
+  <description>Driver class name for a JDBC  metastore</description>
+</property>
+<property>
+  <name>javax.jdo.option.ConnectionUserName</name>
+  <value>root</value>
+  <description>username to use against metastore  database</description>
+</property>
+<property>
+  <name>javax.jdo.option.ConnectionPassword</name>
+  <value>000000</value>
+  <description>password to use against metastore  database</description>
+</property>
+<!-- 数据仓库位置配置 -->
+<property>
+<name>hive.metastore.warehouse.dir</name>
+<value>/user/hive/warehouse</value>
+<description>location of default database for the  warehouse</description>
+</property>
+<!-- 表头和数据库显示 -->
+<property>
+  <name>hive.cli.print.header</name>
+  <value>true</value>
+</property>
+<property>
+  <name>hive.cli.print.current.db</name>
+  <value>true</value>
+</property>
+
+
+开启Map输出阶段压缩
+
+#开启 map输出阶段压缩 可以减少job中 map和Reduce task间数据传输量
+# 1. 开启hive中间传输数据压缩功能
+# 2. 开启mapreduce中map输出压缩功能
+# 3. 设置mapreduce中map输出数据的压缩方式
+set hive.exec.compress.intermediate=true;  // 开启hive传输间压缩
+set mapreduce.map.output.compress=true;    // 开启map阶段压缩
+set mapreduce.map.output.compress.codec=org.apache.hadoop.io.compress.SnappyCodec;
+
+
+推荐orc存储+snappy压缩
+开启Reduce输出阶段压缩
+
+当Hive将输出写入到表中时，输出内容同样可以进行压缩。属性 hive.exec.compress.output 控制着这个功能。
+用户可能需要保持默认设置文件中的默认值false，这样默认的输出就是非压缩的纯文本文件了。
+用户可以通过在查询语句或执行脚本中设置这个值为true，开启输出结果压缩功能。
+
+# 1. 开启hive最终输出数据压缩功能
+# 2. 开启mapreduce最终输出数据压缩
+# 3. 设置mapreduce最终数据输出压缩方式
+# 4. 设置mapreduce最终数据输出压缩为块压缩
+set hive.exec.compress.output=true;
+set mapreduce.output.fileoutputformat.compress=true;
+set mapreduce.output.fileoutputformat.compress.codec=org.apache.hadoop.io.compress.SnappyCodec;
+set mapreduce.output.fileoutputformat.compress.type=BLOCK;
+
+
+Fetch抓取: Hive中对某些情况的查询可以不必使用MapReduce计算。
+在 hive-default.xml.template 文件中 hive.fetch.task.conversion 默认是more，老版本hive默认是minimal，
+该属性修改为more以后，在全局查找、字段查找、limit查找 等都不走mapreduce。
+<property>
+    <name>hive.fetch.task.conversion</name>
+    <value>more</value>
+    <description>
+      Expects one of [none, minimal, more].
+      Some select queries can be converted to single FETCH  task minimizing latency.
+      Currently the query should be single sourced not  having any subquery and should not have
+      any aggregations or distincts (which incurs RS),  lateral views and joins.
+      0. none : disable hive.fetch.task.conversion
+      1. minimal : SELECT STAR, FILTER on partition columns,  LIMIT only
+      2. more  : SELECT, FILTER, LIMIT only (support  TABLESAMPLE and virtual columns)
+    </description>
+</property>
+
+# 把hive.fetch.task.conversion设置成none，然后执行查询语句，都会执行mapreduce程序
+set hive.fetch.task.conversion=none;
+
+
+本地模式
+大多数的Hadoop Job是需要Hadoop提供的完整的可扩展性来处理大数据集的。不过，有时Hive的 输入数据量是非常小的。
+在这种情况下，为查询触发执行任务消耗的时间可能会比 实际job的执行时间要多的多。
+对于大多数这种情况，Hive可以通过本地模式在单台机器上处理所的任务。对于小数据集，执行时间可以明显被缩短。
+用户可以通过设置 hive.exec.mode.local.auto 的值为true，来让Hive在适当的时候自动启动这个优化。
+
+# 开启本地mr
+set hive.exec.mode.local.auto=true;
+# 设置local mr的最大输入数据量，当输入数据量小于这个值时采用local mr的方式，默认为134217728，即128M
+set hive.exec.mode.local.auto.inputbytes.max=50000000;
+# 设置local mr的最大输入文件个数，当输入文件个数小于这个值时采用local mr的方式，默认为4
+set hive.exec.mode.local.auto.input.files.max=10;
+
+# 开启本地模式，并执行查询语句
+set hive.exec.mode.local.auto=true;
+
+
+MapJoin
+如果不指定MapJoin或者不符合MapJoin的条件，那么Hive解析器会将Join操作转换成Common Join，
+即：在Reduce阶段完成join,容易发生数据倾斜。
+可以用MapJoin把小表全部加载到内存在map端进行join，避免reducer处理。
+
+# 设置自动选择Mapjoin
+set hive.auto.convert.join = true;  # 默认为true
+# 大表小表的阈值设置（默认25M以下认为是小表）
+set hive.mapjoin.smalltable.filesize=25000000;
+
+
+Group By （combine）
+默认情况下，Map阶段同一Key数据分发给一个reduce，当一个key数据过大时就倾斜了。
+并不是所有的聚合操作都需要在Reduce端完成，很多聚合操作都可以先在Map端进行部分聚合，最后在Reduce端得出最终结果。
+
+# 是否在Map端进行聚合，默认为True
+set hive.map.aggr = true;
+# 在Map端进行聚合操作的条目数目
+set hive.groupby.mapaggr.checkinterval = 100000;
+# 数据倾斜的时候进行负载均衡（默认是false）
+set hive.groupby.skewindata = true;
+
+
+
+动态分区调整（普通表到分区表的转化）
+
+关系型数据库中，对分区表Insert数据时候，数据库自动会根据分区字段的值，将数据插入到相应的分区中，
+Hive中也提供了类似的机制，即动态分区(Dynamic Partition)，使用Hive的动态分区，需要进行相应的配置。
+普通表中的数据插入到分区表中， 分区表的分区字段可以是任意一个字段
+
+已知一个普通表：
+emp：a(int) b(string) day(string) c(int)
+要求：按day为分区字段，转成分区表
+
+# 1. 创建分区表，注意：分区字段放最后
+create external table if not exists default.emp_par(
+a int,
+b string,
+c int
+)
+partitioned by(par_day string)
+row format delimited fields terminated by '\t';
+
+# 设置动态分区
+set hive.exec.dynamic.partition = true;
+set hive.exec.dynamic.partition.mode = nonstrict;
+set hive.exec.max.dynamic.partitions = 1000;
+set hive.exec.max.dynamic.partitions.pernode = 100;
+set hive.exec.max.created.files = 100000;
+set hive.error.on.empty.partition = false;
+
+# 2. 普通表输入按顺序插入到分区表
+insert overwrite table emp_par partition(par_day)
+select a,b,c,day from emp;
+
+# 开启动态分区功能（默认true，开启）
+set hive.exec.dynamic.partition=true;
+
+# 设置为非严格模式（动态分区的模式，默认strict，表示必须指定至少一个分区为静态分区，nonstrict模式表示允许所的分区字段都可以使用动态分区。
+hive.exec.dynamic.partition.mode=nonstrict;
+
+# 在所执行MR的节点上，最大一共可以创建多少个动态分区。
+hive.exec.max.dynamic.partitions=1000;
+
+# 在每个执行MR的节点上，最大可以创建多少个动态分区。该参数需要根据实际的数据来设定。
+# 比如：源数据中包含了一年的数据，即day字段365个值，那么该参数就需要设置成大于365，如果使用默认值100，则会报错。
+hive.exec.max.dynamic.partitions.pernode=100;
+
+# 整个MR Job中，最大可以创建多少个HDFS文件。
+hive.exec.max.created.files=100000;
+
+# 当空分区生成时，是否抛出异常。一般不需要设置。
+hive.error.on.empty.partition=false
+
+
+
+小文件进行合并
+在map执行前合并小文件，减少map数：
+CombineHiveInputFormat具对小文件进行合并的功能（系统默认的格式）。
+HiveInputFormat没有对小文件合并功能。
+set hive.input.format=org.apache.hadoop.hive.ql.io.CombineHiveInputFormat;
+
+
+
+复杂文件增加Map数（maxSize小于blocksize）
+
+当input的文件都很大，任务逻辑复杂，map执行非常慢的时候，
+可以考虑增加Map数，来使得每个map处理的数据量减少，从而提高任务的执行效率。
+
+增加map的方法为：根据 computeSliteSize(Math.max(minSize,Math.min(maxSize,blocksize)))=blocksize=128M 公式，调整maxSize最大值。
+增加map的个数：maxSize小于blocksize
+
+select count(*)
+from emp;
+
+Hadoop job information for Stage-1: number of mappers: 1;  number of reducers: 1
+
+# 设置最大切片值为100个字节（blocksize=128）
+set mapreduce.input.fileinputformat.split.maxsize=100;
+
+
+合理设置Reduce数
+
+# 参数1：每个Reduce处理的数据量默认是256MB
+hive.exec.reducers.bytes.per.reducer=256000000
+# 参数2：每个任务最大的reduce数默认为1009
+hive.exec.reducers.max=1009
+# 计算reducer数的公式
+N = min(参数2, 总输入数据量/参数1)
+
+mapred-default.xml
+# 设置每个job的Reduce个数
+set mapreduce.job.reduces = 15;
+
+reduce个数并不是越多越好
+
+
+并行执行
+
+# 打开任务并行执行
+set hive.exec.parallel=true;
+
+# 同一个sql允许最大并行度，默认为8 
+set hive.exec.parallel.thread.number=16; 
+
+
+严格模式
+
+Hive提供了一个严格模式，可以防止用户执行那些可能意向不到的不好的影响的查询。
+通过设置属性 hive.mapred.mode 值为默认是非严格模式nonstrict 。
+开启严格模式strict可以禁止3种类型的查询。
+
+<property>
+    <name>hive.mapred.mode</name>
+    <value>strict</value>
+    <description>
+      The mode in which the Hive operations are being performed.
+      In strict mode, some risky queries are not allowed to run.  They include:
+        Cartesian Product.
+        No partition being picked up for a query.
+        Comparing bigints and strings.
+        Comparing bigints and doubles.
+        Orderby without limit.
+</description>
+</property>
+
+
+
+JVM重用
+
+JVM重用是 Hadoop调优参数的内容，其对Hive的性能具非常大的影响，特别是对于很难避免小文件的场景或task特别多的场景，这类场景大多数执行时间都很短。
+
+Hadoop的默认配置通常是使用派生JVM来执行map和Reduce任务的。这时JVM的启动过程可能会造成相当大的开销，尤其是执行的job包含成百上千task任务的情况。
+
+JVM重用可以使得JVM实例在同一个job中重新使用N次。
+通常在10-20之间，具体多少需要根据具体业务场景测试得出。
+
+mapred-site.xml
+<property>
+  <name>mapreduce.job.jvm.numtasks</name>
+  <value>10</value>
+  <description>How many tasks to run per jvm. If set to -1,  there is no limit.</description>
+</property>
+
+这个功能的缺点是， 开启JVM重用将一直占用使用到的task插槽， 以便进行重用，直到任务完成后才能释放。
+
+
+
+推测执行
+
+mapred-site.xml
+<property>
+  <name>mapreduce.map.speculative</name>
+  <value>true</value>
+  <description>If true, then multiple instances of some map  tasks
+               may be executed in parallel.</description>
+</property>
+<property>
+  <name>mapreduce.reduce.speculative</name>
+  <value>true</value>
+  <description>If true, then multiple instances of some reduce  tasks
+               may be executed in parallel.</description>
+</property>
+
+<!-- hive控制reduce-side的推测执行 -->
+<property>
+  <name>hive.mapred.reduce.tasks.speculative.execution</name>
+  <value>true</value>
+  <description>Whether speculative execution for reducers should  be turned on. </description>
+</property>
+如果用户对于运行时的偏差非常敏感，可以将这些功能关闭掉
+
+
+#创建分桶表时，数据通过子查询的方式导入
+// 0. 参数设置
+set hive.enforce.bucketing=true;  # 设置可分桶
+set mapreduce.job.reduces=-1;     # 不设置reduce个数
+
+
+kafka
+======================================================
+
+2.1 项目经验之Kafka压力测试
+
+1）Kafka压测
+
+用Kafka官方自带的脚本，对Kafka进行压测。Kafka压测时，可以查看到哪个地方出现了瓶颈（CPU，内存，网络IO）。一般都是网络IO达到瓶颈。
+
+bin/kafka-consumer-perf-test.sh
+bin/kafka-producer-perf-test.sh
+
+2）Kafka Producer压力测试
+
+（1）在/opt/module/kafka/bin目录下面有这两个文件。我们来测试一下
+[gql@hadoop102 kafka]$ bin/kafka-producer-perf-test.sh  --topic test --record-size 100 --num-records 100000 --throughput 1000 --producer-props bootstrap.servers=hadoop102:9092,hadoop103:9092,hadoop104:9092
+
+说明：
+record-size是一条信息有多大，单位是字节。
+num-records是总共发送多少条信息。
+throughput 是每秒多少条信息。
+
+（2）Kafka会打印下面的信息
+5000 records sent, 999.4 records/sec (0.10 MB/sec), 1.9 ms avg latency, 254.0 max latency.
+5002 records sent, 1000.4 records/sec (0.10 MB/sec), 0.7 ms avg latency, 12.0 max latency.
+5001 records sent, 1000.0 records/sec (0.10 MB/sec), 0.8 ms avg latency, 4.0 max latency.
+5000 records sent, 1000.0 records/sec (0.10 MB/sec), 0.7 ms avg latency, 3.0 max latency.
+5000 records sent, 1000.0 records/sec (0.10 MB/sec), 0.8 ms avg latency, 5.0 max latency.
+100000 records sent, 999.800040 records/sec (0.10 MB/sec), 2.99 ms avg latency, 496.00 ms max latency, 1 ms 50th, 3 ms 95th, 81 ms 99th, 251 ms 99.9th.
+
+参数解析：本例中一共写入10w条消息，每秒向Kafka写入了0.10MB的数据，平均是1000条消息/秒，每次写入的平均延迟为0.8毫秒，最大的延迟为254毫秒。
+
+3）Kafka Consumer压力测试
+
+Consumer的测试，如果这四个指标（IO，CPU，内存，网络）都不能改变，考虑增加分区数来提升性能。
+
+[gql@hadoop102 kafka]$
+bin/kafka-consumer-perf-test.sh --zookeeper hadoop102:2181 --topic test --fetch-size 10000 --messages 10000000 --threads 1
+
+参数说明：
+--zookeeper 指定zookeeper的链接信息
+--topic 指定topic的名称
+--fetch-size 指定每次fetch的数据的大小
+--messages 总共要消费的消息个数
+
+测试结果说明：
+start.time, end.time, data.consumed.in.MB, MB.sec, data.consumed.in.nMsg, nMsg.sec
+2019-02-19 20:29:07:566, 2019-02-19 20:29:12:170, 9.5368, 2.0714, 100010, 21722.4153
+开始测试时间，测试结束数据，最大吞吐率9.5368MB/s，平均每秒消费2.0714MB/s，最大每秒消费100010条，平均每秒消费21722.4153条。
+
+
+2.2 项目经验之Kafka机器数量计算
+
+Kafka机器数量（经验公式）=2*（峰值生产速度*副本数/100）+1
+
+先要预估一天大概产生多少数据，然后用Kafka自带的生产压测（只测试Kafka的写入速度，保证数据不积压），计算出峰值生产速度。再根据设定的副本数，就能预估出需要部署Kafka的数量。
+
+比如我们采用压力测试测出写入的速度是10M/s一台，峰值的业务数据的速度是50M/s。副本数为2。
+
+Kafka机器数量=2*（50*2/100）+ 1=3台
+
+
+
+
+
+
+
+
+
+
